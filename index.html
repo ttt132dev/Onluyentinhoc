@@ -10,11 +10,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Inter Font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Firebase SDK (v9 Compat Modules cho file HTML đơn) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -78,7 +73,7 @@
           </div>
           <div>
             <h1 class="font-bold text-lg leading-tight text-slate-900 dark:text-white">Ôn Luyện Tin Học</h1>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Trắc nghiệm & Luyện thi (Đồng bộ Đám mây)</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Trắc nghiệm & Luyện thi</p>
           </div>
         </div>
 
@@ -96,10 +91,10 @@
       <section id="auth-view" class="hidden max-w-md mx-auto my-8 bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700">
         <div class="text-center mb-6">
           <div class="inline-flex p-3 rounded-2xl bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 mb-3">
-            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+            <i class="fa-solid fa-user-lock text-2xl"></i>
           </div>
           <h2 id="auth-title" class="text-2xl font-bold">Đăng nhập tài khoản</h2>
-          <p id="auth-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-1">Đăng nhập để tự động đồng bộ máy tính & điện thoại</p>
+          <p id="auth-subtitle" class="text-sm text-slate-500 dark:text-slate-400 mt-1">Đăng nhập để lưu lịch sử làm bài & tiến trình ôn tập</p>
         </div>
 
         <form id="auth-form" onsubmit="app.handleAuth(event)" class="space-y-4">
@@ -144,10 +139,10 @@
         <div class="relative overflow-hidden bg-gradient-to-r from-sky-600 to-indigo-700 rounded-3xl p-6 sm:p-10 text-white shadow-xl">
           <div class="relative z-10 max-w-2xl">
             <span class="inline-block px-3 py-1 bg-white/20 backdrop-blur rounded-full text-xs font-semibold tracking-wide uppercase mb-3">
-              Kho câu hỏi chuẩn xác 338 câu • Đồng bộ Cloud
+              Kho câu hỏi chuẩn xác 338 câu
             </span>
             <h2 class="text-2xl sm:text-4xl font-extrabold leading-tight">Ôn Luyện Trắc Nghiệm Tin Học & Văn Phòng</h2>
-            <p class="mt-2 text-sky-100 text-sm sm:text-base">Dữ liệu được tự động đồng bộ giữa Điện thoại và Máy tính. Bạn có thể làm dở ở máy tính và tiếp tục trên điện thoại!</p>
+            <p class="mt-2 text-sky-100 text-sm sm:text-base">Hệ thống tự động lưu tiến trình làm bài dở dang, bạn có thể thoát ra và vào làm tiếp bất cứ lúc nào!</p>
           </div>
           <i class="fa-solid fa-graduation-cap absolute -right-6 -bottom-6 text-9xl text-white/10 rotate-12 pointer-events-none"></i>
         </div>
@@ -297,23 +292,13 @@
     <!-- FOOTER -->
     <footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 text-center text-xs text-slate-500">
       <div class="max-w-7xl mx-auto px-4">
-        <p>© 2026 Ứng Dụng Ôn Luyện Tin Học • Cloud Sync Enabled</p>
+        <p>© 2026 Ứng Dụng Ôn Luyện Tin Học </p>
       </div>
     </footer>
   </div>
 
   <!-- SCRIPT DATA & APP LOGIC -->
   <script>
-    // CẤU HÌNH FIREBASE REALTIME DATABASE (Miễn phí)
-    const firebaseConfig = {
-      databaseURL: "https://onluyentinhoc-app-default-rtdb.asia-southeast1.firebasedatabase.app"
-    };
-    
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.database();
-
     const RAW_TEST_DATA = {
       test1: [
         { id: 1, type: 'single', q: 'Hầu hết các máy tính sử dụng bộ nhớ flash để:', options: ['Kết nối và cổng', '2 loại SOF bộ nhớ cache.', 'Bộ nhớ flash.', 'lưu giữ các chi lệnh khởi đầu vì nó cho phép các máy tính dễ dàng để cập nhật nội dung của nó.'], correct: [3] },
@@ -667,11 +652,11 @@
       ]
     };
 
-    // APPLICATION STATE MANAGER WITH REALTIME CLOUD SYNC
+    // APPLICATION STATE MANAGER
     class App {
       constructor() {
         this.currentUser = JSON.parse(localStorage.getItem('tin_hoc_user')) || null;
-        this.userData = { history: {}, activeTests: {}, wrongQuestions: [] };
+        this.users = JSON.parse(localStorage.getItem('tin_hoc_users_db')) || {};
         this.authMode = 'login';
         
         // Quiz runtime state
@@ -691,50 +676,7 @@
         if (!this.currentUser) {
           this.showView('auth');
         } else {
-          this.syncFromCloud().then(() => {
-            this.navToHome();
-          });
-        }
-      }
-
-      // CHUYỂN TÊN TÀI KHOẢN THÀNH KEY AN TOÀN CHO FIREBASE
-      getSanitizedUsername(username) {
-        return (username || '').replace(/[.#$\[\]]/g, "_");
-      }
-
-      // ĐỒNG BỘ TỪ FIREBASE ĐÁM MÂY VỀ MÁY KHÓA TRANG VÀ LOCAL
-      async syncFromCloud() {
-        if (!this.currentUser) return;
-        const key = this.getSanitizedUsername(this.currentUser.username);
-        try {
-          const snapshot = await db.ref('users/' + key).once('value');
-          if (snapshot.exists()) {
-            const data = snapshot.val();
-            this.userData = {
-              history: data.history || {},
-              activeTests: data.activeTests || {},
-              wrongQuestions: data.wrongQuestions || []
-            };
-          } else {
-            this.userData = { history: {}, activeTests: {}, wrongQuestions: [] };
-          }
-        } catch (e) {
-          console.error("Lỗi đồng bộ Đám mây:", e);
-        }
-      }
-
-      // ĐẨY DỮ LIỆU LÊN FIREBASE ĐÁM MÂY
-      async syncToCloud() {
-        if (!this.currentUser) return;
-        const key = this.getSanitizedUsername(this.currentUser.username);
-        try {
-          await db.ref('users/' + key).update({
-            history: this.userData.history || {},
-            activeTests: this.userData.activeTests || {},
-            wrongQuestions: this.userData.wrongQuestions || []
-          });
-        } catch (e) {
-          console.error("Lỗi đẩy dữ liệu lên Đám mây:", e);
+          this.navToHome();
         }
       }
 
@@ -743,7 +685,7 @@
         if (this.currentUser) {
           container.innerHTML = `
             <div class="flex items-center space-x-2 bg-slate-100 dark:bg-slate-700/60 px-3 py-1.5 rounded-xl">
-              <i class="fa-solid fa-cloud text-sky-500 text-lg"></i>
+              <i class="fa-solid fa-circle-user text-sky-500 text-lg"></i>
               <span class="font-semibold text-xs sm:text-sm">${this.escapeHtml(this.currentUser.username)}</span>
             </div>
             <button onclick="app.logout()" class="p-2 text-slate-500 hover:text-red-500 transition" title="Đăng xuất">
@@ -783,20 +725,20 @@
 
         if (this.authMode === 'register') {
           title.textContent = 'Đăng ký tài khoản mới';
-          subtitle.textContent = 'Tạo tài khoản đám mây để lưu tiến trình học tập';
+          subtitle.textContent = 'Tạo tài khoản để bắt đầu lưu tiến trình học tập';
           submitBtn.textContent = 'Đăng ký ngay';
           toggleText.textContent = 'Đã có tài khoản?';
           toggleBtn.textContent = 'Đăng nhập';
         } else {
           title.textContent = 'Đăng nhập tài khoản';
-          subtitle.textContent = 'Đăng nhập để đồng bộ máy tính & điện thoại';
+          subtitle.textContent = 'Đăng nhập để lưu lịch sử làm bài & tiến trình ôn tập';
           submitBtn.textContent = 'Đăng nhập';
           toggleText.textContent = 'Chưa có tài khoản?';
           toggleBtn.textContent = 'Đăng ký ngay';
         }
       }
 
-      async handleAuth(e) {
+      handleAuth(e) {
         e.preventDefault();
         const username = document.getElementById('auth-username').value.trim();
         const password = document.getElementById('auth-password').value.trim();
@@ -808,119 +750,119 @@
           return;
         }
 
-        const key = this.getSanitizedUsername(username);
-
-        try {
-          const snapshot = await db.ref('users/' + key).once('value');
-          const userExist = snapshot.exists();
-
-          if (this.authMode === 'register') {
-            if (userExist) {
-              errorDiv.textContent = 'Tên đăng nhập này đã tồn tại trên đám mây!';
-              errorDiv.classList.remove('hidden');
-              return;
-            }
-            // Tạo tài khoản mới trên Cloud
-            const newUserData = { password: password, history: {}, activeTests: {}, wrongQuestions: [] };
-            await db.ref('users/' + key).set(newUserData);
-            
-            this.currentUser = { username: username };
-            localStorage.setItem('tin_hoc_user', JSON.stringify(this.currentUser));
-            this.userData = { history: {}, activeTests: {}, wrongQuestions: [] };
-            this.renderNav();
-            this.navToHome();
-          } else {
-            if (!userExist) {
-              errorDiv.textContent = 'Tài khoản không tồn tại!';
-              errorDiv.classList.remove('hidden');
-              return;
-            }
-            const cloudPass = snapshot.child('password').val();
-            if (cloudPass !== password) {
-              errorDiv.textContent = 'Sai mật khẩu!';
-              errorDiv.classList.remove('hidden');
-              return;
-            }
-            this.currentUser = { username: username };
-            localStorage.setItem('tin_hoc_user', JSON.stringify(this.currentUser));
-            await this.syncFromCloud();
-            this.renderNav();
-            this.navToHome();
+        if (this.authMode === 'register') {
+          if (this.users[username]) {
+            errorDiv.textContent = 'Tên đăng nhập này đã tồn tại!';
+            errorDiv.classList.remove('hidden');
+            return;
           }
-        } catch (err) {
-          errorDiv.textContent = 'Lỗi kết nối máy chủ đồng bộ Cloud!';
-          errorDiv.classList.remove('hidden');
+          this.users[username] = { password: password, history: {}, activeTests: {}, wrongQuestions: [] };
+          localStorage.setItem('tin_hoc_users_db', JSON.stringify(this.users));
+          this.currentUser = { username: username };
+          localStorage.setItem('tin_hoc_user', JSON.stringify(this.currentUser));
+          this.renderNav();
+          this.navToHome();
+        } else {
+          if (!this.users[username] || this.users[username].password !== password) {
+            errorDiv.textContent = 'Sai tên đăng nhập hoặc mật khẩu!';
+            errorDiv.classList.remove('hidden');
+            return;
+          }
+          this.currentUser = { username: username };
+          localStorage.setItem('tin_hoc_user', JSON.stringify(this.currentUser));
+          this.renderNav();
+          this.navToHome();
         }
       }
 
       logout() {
         this.currentUser = null;
         localStorage.removeItem('tin_hoc_user');
-        this.userData = { history: {}, activeTests: {}, wrongQuestions: [] };
         this.renderNav();
         this.showView('auth');
       }
 
-      async navToHome() {
+      navToHome() {
         if (!this.currentUser) return this.showView('auth');
-        await this.syncFromCloud();
         this.renderUserStats();
         this.renderTestCards();
         this.showView('home');
       }
 
-      // LƯU TIẾN TRÌNH LÊN ĐÁM MÂY
-      async saveProgress() {
-        if (!this.currentUser || !this.currentTestKey) return;
-        if (!this.userData.activeTests) this.userData.activeTests = {};
+      getUserData() {
+        if (!this.currentUser) return { history: {}, activeTests: {}, wrongQuestions: [] };
+        if (!this.users[this.currentUser.username]) {
+          this.users[this.currentUser.username] = { password: '', history: {}, activeTests: {}, wrongQuestions: [] };
+        }
+        if (!this.users[this.currentUser.username].wrongQuestions) {
+          this.users[this.currentUser.username].wrongQuestions = [];
+        }
+        return this.users[this.currentUser.username];
+      }
 
-        this.userData.activeTests[this.currentTestKey] = {
+      saveUserData() {
+        if (!this.currentUser) return;
+        localStorage.setItem('tin_hoc_users_db', JSON.stringify(this.users));
+      }
+
+      // LƯU TIẾN TRÌNH DỞ DANG
+      saveProgress() {
+        if (!this.currentUser || !this.currentTestKey) return;
+        const userData = this.getUserData();
+        if (!userData.activeTests) userData.activeTests = {};
+
+        userData.activeTests[this.currentTestKey] = {
           userAnswers: this.userAnswers,
           checkedQuestions: this.checkedQuestions,
           currentIndex: this.currentIndex,
           timerSeconds: this.timerSeconds,
           questions: this.currentQuestions
         };
-        await this.syncToCloud();
+        this.saveUserData();
       }
 
-      async clearProgress(testKey) {
+      clearProgress(testKey) {
         if (!this.currentUser) return;
-        if (this.userData.activeTests && this.userData.activeTests[testKey]) {
-          delete this.userData.activeTests[testKey];
-          await this.syncToCloud();
+        const userData = this.getUserData();
+        if (userData.activeTests && userData.activeTests[testKey]) {
+          delete userData.activeTests[testKey];
+          this.saveUserData();
         }
       }
 
-      // CẬP NHẬT CÂU HỎI SAI VÀO DATABASE
-      async updateWrongQuestions() {
+      // LƯU VÀ CẬP NHẬT CÂU HỎI SAI VÀO DATABASE CỦA USER
+      updateWrongQuestions() {
         if (!this.currentUser) return;
-        let wrongList = this.userData.wrongQuestions || [];
+        const userData = this.getUserData();
+        let wrongList = userData.wrongQuestions || [];
 
         this.currentQuestions.forEach((q, idx) => {
           const isCorrect = this.evaluateQuestion(idx);
           const existingIndex = wrongList.findIndex(wq => wq.q === q.q);
 
           if (!isCorrect) {
+            // Nếu làm sai -> Thêm vào danh sách câu sai nếu chưa có
             if (existingIndex === -1) {
               wrongList.push(q);
             }
           } else {
+            // Nếu đã làm đúng lại câu này -> Xóa khỏi danh sách câu sai
             if (existingIndex !== -1) {
               wrongList.splice(existingIndex, 1);
             }
           }
         });
 
-        this.userData.wrongQuestions = wrongList;
-        await this.syncToCloud();
+        userData.wrongQuestions = wrongList;
+        this.saveUserData();
       }
 
-      async saveTestResult(testKey, score, correctCount, totalCount, timeSpent) {
+      saveTestResult(testKey, score, correctCount, totalCount, timeSpent) {
         if (!this.currentUser) return;
-        if (!this.userData.history) this.userData.history = {};
+        const userData = this.getUserData();
+        if (!userData.history) userData.history = {};
 
-        this.userData.history[testKey] = {
+        userData.history[testKey] = {
           score: score,
           correctCount: correctCount,
           totalCount: totalCount,
@@ -928,13 +870,17 @@
           date: new Date().toLocaleDateString('vi-VN')
         };
 
-        await this.updateWrongQuestions();
-        await this.clearProgress(testKey);
-        await this.syncToCloud();
+        // Cập nhật danh sách các câu sai
+        this.updateWrongQuestions();
+
+        // Xóa tiến trình dở dang sau khi nộp bài xong
+        this.clearProgress(testKey);
+        this.saveUserData();
       }
 
       renderUserStats() {
-        const history = this.userData.history || {};
+        const userData = this.getUserData();
+        const history = userData.history || {};
         const completedTests = Object.keys(history).length;
         let totalCorrect = 0;
         let totalAnswered = 0;
@@ -945,7 +891,7 @@
         });
 
         const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
-        const wrongCount = (this.userData.wrongQuestions || []).length;
+        const wrongCount = (userData.wrongQuestions || []).length;
 
         const statsCard = document.getElementById('user-stats-card');
         statsCard.innerHTML = `
@@ -971,9 +917,9 @@
             </div>
           </div>
           <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center space-x-3">
-            <div class="p-3 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded-xl"><i class="fa-solid fa-cloud text-xl"></i></div>
+            <div class="p-3 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded-xl"><i class="fa-solid fa-user text-xl"></i></div>
             <div>
-              <p class="text-xs text-slate-500">Đồng bộ Cloud</p>
+              <p class="text-xs text-slate-500">Học viên</p>
               <p class="text-lg font-bold truncate max-w-[100px]">${this.escapeHtml(this.currentUser.username)}</p>
             </div>
           </div>
@@ -982,9 +928,10 @@
 
       renderTestCards() {
         const grid = document.getElementById('test-list-grid');
-        const history = this.userData.history || {};
-        const activeTests = this.userData.activeTests || {};
-        const wrongList = this.userData.wrongQuestions || [];
+        const userData = this.getUserData();
+        const history = userData.history || {};
+        const activeTests = userData.activeTests || {};
+        const wrongList = userData.wrongQuestions || [];
 
         const tests = [
           { key: 'test1', title: 'TEST 1', count: RAW_TEST_DATA.test1.length, desc: '60 câu phần cứng, phần mềm, Windows, mạng & Access', icon: 'fa-1', color: 'from-blue-500 to-cyan-500' },
@@ -1061,13 +1008,13 @@
         }).join('');
       }
 
-      async startQuiz(testKey, forceNew = false) {
+      startQuiz(testKey, forceNew = false) {
         this.currentTestKey = testKey;
-        await this.syncFromCloud();
-        const activeData = this.userData.activeTests ? this.userData.activeTests[testKey] : null;
+        const userData = this.getUserData();
+        const activeData = userData.activeTests ? userData.activeTests[testKey] : null;
 
         if (!forceNew && activeData) {
-          // Khôi phục tiến trình đang làm dở từ Đám mây
+          // Khôi phục tiến trình đang làm dở
           this.userAnswers = activeData.userAnswers || {};
           this.checkedQuestions = activeData.checkedQuestions || {};
           this.currentIndex = activeData.currentIndex || 0;
@@ -1088,7 +1035,7 @@
             const shuffled = [...allQ].sort(() => 0.5 - Math.random());
             this.currentQuestions = shuffled.slice(0, 60);
           } else if (testKey === 'wrong_practice') {
-            const wrongList = this.userData.wrongQuestions || [];
+            const wrongList = userData.wrongQuestions || [];
             if (wrongList.length === 0) {
               alert('Bạn chưa có câu hỏi nào làm sai!');
               return;
@@ -1097,7 +1044,7 @@
           } else {
             this.currentQuestions = [...RAW_TEST_DATA[testKey]];
           }
-          await this.clearProgress(testKey);
+          this.clearProgress(testKey);
         }
 
         const testNames = {
@@ -1296,7 +1243,7 @@
         this.navToHome();
       }
 
-      async finishQuiz() {
+      finishQuiz() {
         // Tự động kiểm tra chấm điểm tất cả câu chưa check
         this.currentQuestions.forEach((_, idx) => {
           this.checkedQuestions[idx] = true;
@@ -1316,7 +1263,7 @@
         const secs = String(this.timerSeconds % 60).padStart(2, '0');
         const timeStr = `${mins}:${secs}`;
 
-        await this.saveTestResult(this.currentTestKey, score10, correctCount, total, timeStr);
+        this.saveTestResult(this.currentTestKey, score10, correctCount, total, timeStr);
 
         document.getElementById('result-test-name').textContent = document.getElementById('quiz-title').textContent;
         document.getElementById('result-score').textContent = `${score10} / 10`;
