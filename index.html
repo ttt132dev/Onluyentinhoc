@@ -302,7 +302,7 @@
     const RAW_TEST_DATA = {
       test1: [
         { id: 1, type: 'single', q: 'Hầu hết các máy tính sử dụng bộ nhớ flash để:', options: ['Kết nối và cổng', '2 loại SOF bộ nhớ cache.', 'Bộ nhớ flash.', 'lưu giữ các chi lệnh khởi đầu vì nó cho phép các máy tính dễ dàng để cập nhật nội dung của nó.'], correct: [3] },
-        { id: 2, type: 'single', q: 'Bộ xử lý của máy tính làm gì?', options: ['A. Lưu trữ các dữ liệu của bạn dưới các hình thức của các tập tin và thư mục', 'B. Thực thi các câu lệnh được truyển đi bởi các phần mềm bạn chạy', 'C. Xử lý và tạo ra những hình ảnh được hiển thị bằng máy tính của bạn', 'D. Kết nối máy tính vào mạng'], correct: [2] },
+        { id: 2, type: 'single', q: 'Bộ xử lý của máy tính làm gì?', options: ['A. Lưu trữ các dữ liệu của bạn dưới các hình thức của các tập tin và thư mục', 'B. Thực thi các câu lệnh được truyển đi bởi các phần mềm bạn chạy', 'C. Xử lý và tạo ra những hình ảnh được hiển thị bằng máy tính của bạn', 'D. Kết nối máy tính vào mạng'], correct: [1] },
         { id: 3, type: 'single', q: '.......... là một phần của giao diện đồ họa (GUI) trong Windows. Cho phép người dùng thiết lập hệ thống bằng cách thêm phần cứng mới, gỡ bỏ chương trình, chỉnh sửa tài khoản...', options: ['Control panel', 'Windows Explorer', 'Action Center', 'Phần mềm người dùng'], correct: [0] },
         { id: 4, type: 'single', q: '......là một ngôn ngữ được sử dụng bởi các máy tính để giao tiếp, trao đổi thông tin với nhau qua việc sử dụng hệ thống mạng?', options: ['máy chủ(server)', 'trình duyệt(browser)', 'giao thức(protocol)', 'công cụ tìm kiếm(search engine)'], correct: [2] },
         { id: 5, type: 'single', q: 'Các phím tắt cho các lệnh Copy là gì?', options: ['A. Ctrl+V', 'B. Ctrl+Z', 'C. Alt+F4', 'D. Ctrl+C'], correct: [3] },
@@ -756,7 +756,7 @@
             errorDiv.classList.remove('hidden');
             return;
           }
-          this.users[username] = { password: password, history: {}, activeTests: {} };
+          this.users[username] = { password: password, history: {}, activeTests: {}, wrongQuestions: [] };
           localStorage.setItem('tin_hoc_users_db', JSON.stringify(this.users));
           this.currentUser = { username: username };
           localStorage.setItem('tin_hoc_user', JSON.stringify(this.currentUser));
@@ -790,9 +790,12 @@
       }
 
       getUserData() {
-        if (!this.currentUser) return { history: {}, activeTests: {} };
+        if (!this.currentUser) return { history: {}, activeTests: {}, wrongQuestions: [] };
         if (!this.users[this.currentUser.username]) {
-          this.users[this.currentUser.username] = { password: '', history: {}, activeTests: {} };
+          this.users[this.currentUser.username] = { password: '', history: {}, activeTests: {}, wrongQuestions: [] };
+        }
+        if (!this.users[this.currentUser.username].wrongQuestions) {
+          this.users[this.currentUser.username].wrongQuestions = [];
         }
         return this.users[this.currentUser.username];
       }
@@ -827,6 +830,33 @@
         }
       }
 
+      // LƯU VÀ CẬP NHẬT CÂU HỎI SAI VÀO DATABASE CỦA USER
+      updateWrongQuestions() {
+        if (!this.currentUser) return;
+        const userData = this.getUserData();
+        let wrongList = userData.wrongQuestions || [];
+
+        this.currentQuestions.forEach((q, idx) => {
+          const isCorrect = this.evaluateQuestion(idx);
+          const existingIndex = wrongList.findIndex(wq => wq.q === q.q);
+
+          if (!isCorrect) {
+            // Nếu làm sai -> Thêm vào danh sách câu sai nếu chưa có
+            if (existingIndex === -1) {
+              wrongList.push(q);
+            }
+          } else {
+            // Nếu đã làm đúng lại câu này -> Xóa khỏi danh sách câu sai
+            if (existingIndex !== -1) {
+              wrongList.splice(existingIndex, 1);
+            }
+          }
+        });
+
+        userData.wrongQuestions = wrongList;
+        this.saveUserData();
+      }
+
       saveTestResult(testKey, score, correctCount, totalCount, timeSpent) {
         if (!this.currentUser) return;
         const userData = this.getUserData();
@@ -839,6 +869,9 @@
           timeSpent: timeSpent,
           date: new Date().toLocaleDateString('vi-VN')
         };
+
+        // Cập nhật danh sách các câu sai
+        this.updateWrongQuestions();
 
         // Xóa tiến trình dở dang sau khi nộp bài xong
         this.clearProgress(testKey);
@@ -858,6 +891,7 @@
         });
 
         const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
+        const wrongCount = (userData.wrongQuestions || []).length;
 
         const statsCard = document.getElementById('user-stats-card');
         statsCard.innerHTML = `
@@ -865,7 +899,7 @@
             <div class="p-3 bg-sky-100 dark:bg-sky-900/40 text-sky-600 rounded-xl"><i class="fa-solid fa-circle-check text-xl"></i></div>
             <div>
               <p class="text-xs text-slate-500">Đã hoàn thành</p>
-              <p class="text-lg font-bold">${completedTests} / 7 Bài</p>
+              <p class="text-lg font-bold">${completedTests} / 8 Bài</p>
             </div>
           </div>
           <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center space-x-3">
@@ -876,10 +910,10 @@
             </div>
           </div>
           <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center space-x-3">
-            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl"><i class="fa-solid fa-database text-xl"></i></div>
+            <div class="p-3 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-xl"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
             <div>
-              <p class="text-xs text-slate-500">Tổng câu đúng</p>
-              <p class="text-lg font-bold">${totalCorrect} Câu</p>
+              <p class="text-xs text-slate-500">Câu sai cần ôn lại</p>
+              <p class="text-lg font-bold text-rose-600 dark:text-rose-400">${wrongCount} Câu</p>
             </div>
           </div>
           <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center space-x-3">
@@ -897,6 +931,7 @@
         const userData = this.getUserData();
         const history = userData.history || {};
         const activeTests = userData.activeTests || {};
+        const wrongList = userData.wrongQuestions || [];
 
         const tests = [
           { key: 'test1', title: 'TEST 1', count: RAW_TEST_DATA.test1.length, desc: '60 câu phần cứng, phần mềm, Windows, mạng & Access', icon: 'fa-1', color: 'from-blue-500 to-cyan-500' },
@@ -905,7 +940,8 @@
           { key: 'test4', title: 'TEST 4', count: RAW_TEST_DATA.test4.length, desc: '60 câu mạng LAN/WAN, Email, RAM, ROM, Bit Byte', icon: 'fa-4', color: 'from-amber-500 to-orange-500' },
           { key: 'test5', title: 'TEST 5', count: RAW_TEST_DATA.test5.length, desc: '60 câu Excel nâng cao, địa chỉ ô, tìm kiếm & Windows', icon: 'fa-5', color: 'from-rose-500 to-pink-500' },
           { key: 'test6', title: 'TEST 6', count: RAW_TEST_DATA.test6.length, desc: '38 câu Word 2010, PowerPoint 2010, phím tắt & SSD', icon: 'fa-6', color: 'from-violet-500 to-purple-600' },
-          { key: 'combined', title: 'BÀI TEST TỔNG HỢP', count: 60, desc: 'Phối trộn ngẫu nhiên 60 câu lấy từ 6 đề test trên', icon: 'fa-shuffle', color: 'from-fuchsia-600 to-pink-600' }
+          { key: 'combined', title: 'BÀI TEST TỔNG HỢP', count: 60, desc: 'Phối trộn ngẫu nhiên 60 câu lấy từ 6 đề test trên', icon: 'fa-shuffle', color: 'from-fuchsia-600 to-pink-600' },
+          { key: 'wrong_practice', title: 'BÀI TEST ÔN LẠI CÂU SAI', count: wrongList.length, desc: 'Tự động tập hợp tất cả các câu bạn đã từng làm sai từ các đề trên để làm lại', icon: 'fa-rotate-left', color: 'from-red-500 to-rose-600', isWrongTest: true }
         ];
 
         grid.innerHTML = tests.map(t => {
@@ -921,7 +957,14 @@
           }
 
           let actionButtonsHtml = '';
-          if (hasActive) {
+          if (t.isWrongTest && t.count === 0 && !hasActive) {
+            actionButtonsHtml = `
+              <button disabled class="mt-6 w-full py-3 rounded-2xl bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 font-semibold text-sm cursor-not-allowed flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>Chưa có câu sai nào!</span>
+              </button>
+            `;
+          } else if (hasActive) {
             actionButtonsHtml = `
               <div class="mt-6 flex items-center space-x-2">
                 <button onclick="app.startQuiz('${t.key}', false)" class="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs sm:text-sm shadow transition active:scale-95 flex items-center justify-center space-x-1">
@@ -955,7 +998,7 @@
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">${t.desc}</p>
                 <div class="mt-4 flex items-center space-x-4 text-xs font-medium text-slate-500">
                   <span><i class="fa-regular fa-file-lines text-sky-500 mr-1"></i> ${t.count} câu hỏi</span>
-                  <span><i class="fa-regular fa-clock text-amber-500 mr-1"></i> ${t.count} phút</span>
+                  <span><i class="fa-regular fa-clock text-amber-500 mr-1"></i> ${t.count > 0 ? t.count : 1} phút</span>
                 </div>
               </div>
 
@@ -976,7 +1019,7 @@
           this.checkedQuestions = activeData.checkedQuestions || {};
           this.currentIndex = activeData.currentIndex || 0;
           this.timerSeconds = activeData.timerSeconds || 0;
-          this.currentQuestions = activeData.questions || [...RAW_TEST_DATA[testKey]];
+          this.currentQuestions = activeData.questions || [];
         } else {
           // Tạo bài làm mới
           this.currentIndex = 0;
@@ -991,6 +1034,13 @@
             });
             const shuffled = [...allQ].sort(() => 0.5 - Math.random());
             this.currentQuestions = shuffled.slice(0, 60);
+          } else if (testKey === 'wrong_practice') {
+            const wrongList = userData.wrongQuestions || [];
+            if (wrongList.length === 0) {
+              alert('Bạn chưa có câu hỏi nào làm sai!');
+              return;
+            }
+            this.currentQuestions = [...wrongList].sort(() => 0.5 - Math.random());
           } else {
             this.currentQuestions = [...RAW_TEST_DATA[testKey]];
           }
@@ -1000,7 +1050,8 @@
         const testNames = {
           test1: 'TEST 1 (60 câu)', test2: 'TEST 2 (60 câu)', test3: 'TEST 3 (60 câu)',
           test4: 'TEST 4 (60 câu)', test5: 'TEST 5 (60 câu)', test6: 'TEST 6 (38 câu)',
-          combined: 'BÀI TEST TỔNG HỢP (60 câu)'
+          combined: 'BÀI TEST TỔNG HỢP (60 câu)',
+          wrong_practice: `BÀI TEST ÔN LẠI CÂU SAI (${this.currentQuestions.length} câu)`
         };
         document.getElementById('quiz-title').textContent = testNames[testKey] || 'Bài Test';
 
